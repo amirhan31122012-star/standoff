@@ -15,3 +15,5 @@
 .inspect-button{right:275px;bottom:160px}
 @media(max-width:650px){.inspect-button{right:175px;bottom:185px;width:42px;height:42px}}
 @media(max-height:550px) and (min-width:651px){.inspect-button{right:255px;bottom:130px}}
+
+.graphics-retry{display:inline-block;margin:7px 10px 5px 0;padding:10px 13px;border:1px solid #e9b264;background:#25342e;color:#eee6d7;text-decoration:none;font:12px Arial;cursor:pointer}#error pre{white-space:pre-wrap;word-break:break-word;font-size:10px}#error p{line-height:1.55}#start:disabled{opacity:.45;cursor:not-allowed}

@@ -7,10 +7,11 @@ if (!window.THREE || !window.RetroAssets || !window.RetroDetailedWeapons || !win
 const T = THREE, DT = 1 / 30;
 const touch = matchMedia('(pointer: coarse)').matches;
 document.body.classList.toggle('touch', touch);
-const canvas = $('game');
-const renderer = new T.WebGLRenderer({canvas, antialias: !touch, powerPreference: 'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio, touch ? 1.4 : 1.7));
-renderer.shadowMap.enabled = !touch;
+const graphics=RetroGraphics.create($('game'),{touch,forceLow:new URLSearchParams(location.search).get('graphics')==='low'});
+window.__retroGraphicsStatus={api:graphics.api,low:graphics.low,attempts:graphics.attempts};
+if(!graphics.renderer){RetroGraphics.showFailure(graphics.attempts);return;}
+const canvas=graphics.canvas,renderer=graphics.renderer,lowQuality=graphics.low;
+renderer.shadowMap.enabled = !lowQuality;
 renderer.shadowMap.type = T.PCFSoftShadowMap;
 renderer.outputColorSpace = T.SRGBColorSpace;
 renderer.toneMapping = T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
@@ -22,7 +23,7 @@ scene.background = new T.Color(0xc5d9dd);
 scene.fog = new T.Fog(0xc5d9dd, 40, 100);
 scene.add(new T.HemisphereLight(0xe7f4ff, 0x887b69, 1.65));
 const sun = new T.DirectionalLight(0xffe4c0, 3.2);
-sun.position.set(-22, 32, 16); sun.castShadow = !touch;
+sun.position.set(-22, 32, 16); sun.castShadow = !lowQuality;
 sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera, {left:-30,right:30,top:30,bottom:-30,near:1,far:100});
 sun.shadow.camera.updateProjectionMatrix();
@@ -39,7 +40,7 @@ const weaponDefs = [
  {kind:'shotgun',name:'SG-8 · ДРОБОВИК',size:8,reserve:40,damage:12,pellets:8,interval:.8,reload:2.4,spread:.06,recoil:.043,auto:false},
  {kind:'sniper',name:'AW · MAGNUM',size:5,reserve:30,damage:105,pellets:1,interval:1.1,reload:2.8,spread:.001,recoil:.05,auto:false}
 ];
-viewScene.environment=RetroDetailedWeapons.studio(renderer);
+if(!lowQuality){try{viewScene.environment=RetroDetailedWeapons.studio(renderer);}catch(error){console.warn('Reflection environment unavailable:',error.message);}}
 const models = weaponDefs.map(d => {
  const m = RetroDetailedWeapons.createWeapon(d.kind); viewScene.add(m); m.visible=false; m.scale.set(-.82,.82,.82);
  const flash = new T.Mesh(new T.ConeGeometry(.075,.22,6),new T.MeshBasicMaterial({color:0xffd573,transparent:true,opacity:.9}));
@@ -294,5 +295,5 @@ if(new URLSearchParams(location.search).has('test'))window.__retroTest={
  colliders:()=>map.colliders.map(b=>({min:b.min.toArray(),max:b.max.toArray()})),
  freezeBots:()=>{updateBots=()=>{};},step:n=>{for(let i=0;i<n;i++)update(DT);},damage,renderer:()=>renderer.info.render,
 };
-} catch(error){console.error(error);const message=$('error');if(message){message.hidden=false;message.textContent='Не удалось открыть игру: '+error.message+' Попробуйте актуальный Chrome или Edge с аппаратным ускорением.';}}
+} catch(error){console.error(error);const message=$('error');if(message){message.hidden=false;message.textContent='Не удалось открыть игру: '+error.message+'. Перезагрузите страницу или откройте ссылку в отдельном браузере.';}}
 })();

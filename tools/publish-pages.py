@@ -21,7 +21,7 @@ def main():
     args=parser.parse_args()
     source=git('rev-parse','HEAD')
     source_tree=git('rev-parse','HEAD:web')
-    required=['index.html','style.css','assets.js','game.js','weapons.js',
+    required=['index.html','style.css','graphics.js','assets.js','game.js','weapons.js',
               'models/weapons-meshes.js','vendor/three.min.js']
     for path in required:
         git('cat-file','-e',f'HEAD:web/{path}')
