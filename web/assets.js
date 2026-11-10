@@ -60,7 +60,9 @@
       const value=(x,y)=>data[(((y+512)%512)*512+(x+512)%512)*4];
       for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4;ni.data[i]=128+(value(x-1,y)-value(x+1,y))*.8;ni.data[i+1]=128+(value(x,y-1)-value(x,y+1))*.8;ni.data[i+2]=250;ni.data[i+3]=255;}ng.putImageData(ni,0,0);
       const normal=new T.CanvasTexture(nc);normal.wrapS=normal.wrapT=T.RepeatWrapping;
-      return new T.MeshStandardMaterial({map:tex,normalMap:normal,normalScale:new T.Vector2(.55,.55),roughness:.92,color:0xffffff});
+      const roughCanvas=document.createElement('canvas');roughCanvas.width=roughCanvas.height=512;const roughCtx=roughCanvas.getContext('2d'),roughImage=roughCtx.createImageData(512,512);
+      for(let i=0;i<data.length;i+=4){const rough=kind==='plaster'?180+data[i]*.25:160+data[i]*.3;roughImage.data[i]=roughImage.data[i+1]=roughImage.data[i+2]=rough;roughImage.data[i+3]=255;}roughCtx.putImageData(roughImage,0,0);const roughnessMap=new T.CanvasTexture(roughCanvas);roughnessMap.wrapS=roughnessMap.wrapT=T.RepeatWrapping;
+      return new T.MeshStandardMaterial({map:tex,normalMap:normal,roughnessMap,normalScale:new T.Vector2(.75,.75),roughness:.96,color:0xffffff});
     }
     const plaster=surface('plaster','#c6b398'),rose=surface('plaster','#bd927b'),white=surface('plaster','#ddd3bc'),stone=surface('stone','#a99375'),paving=surface('paving','#aa9c81'),wood=surface('wood','#725137');
     const teal=new T.MeshStandardMaterial({color:0x356b68,roughness:.62}),iron=new T.MeshStandardMaterial({color:0x394443,metalness:.7,roughness:.47}),trim=new T.MeshStandardMaterial({color:0xd7c8aa,roughness:.9}),dark=new T.MeshStandardMaterial({color:0x253434,roughness:.6});
@@ -81,11 +83,26 @@
       part(0,0,0,1.05,1.6,.12,dark);part(-.58,0,.05,.14,1.85,.22,trim);part(.58,0,.05,.14,1.85,.22,trim);part(0,.88,.05,1.3,.15,.22,trim);part(0,-.88,.12,1.4,.17,.45,trim);
       for(const side of [-1,1]){part(side*.32,0,.11,.51,1.55,.1,teal);for(let i=0;i<8;i++)part(side*.32,-.64+i*.18,.18,.48,.05,.06,dark);}
     }
+    // Exposed aggregate, chipped plaster and branching hairline cracks have their own
+    // alpha, normal and roughness response instead of being flat colored rectangles.
+    const chipCanvas=document.createElement('canvas');chipCanvas.width=chipCanvas.height=512;const cg=chipCanvas.getContext('2d');
+    cg.beginPath();for(let i=0;i<100;i++){const a=i/100*Math.PI*2,r=.5+rand()*.25;cg.lineTo(256+Math.cos(a)*r*220,256+Math.sin(a)*r*180);}cg.closePath();cg.fillStyle='#8a857a';cg.fill();cg.save();cg.clip();
+    for(let i=0;i<22000;i++){const x=rand()*512,y=rand()*512,r=.3+rand()*2;cg.fillStyle=i%3?'rgba(39,40,36,.3)':'rgba(227,225,213,.5)';cg.beginPath();cg.ellipse(x,y,r,r*.7,rand()*3,0,6.3);cg.fill();}cg.restore();
+    for(let i=0;i<7;i++){let x=256,y=256;cg.strokeStyle='rgba(52,45,36,.65)';cg.lineWidth=1+rand();cg.beginPath();cg.moveTo(x,y);const a=i/7*6.28;for(let j=0;j<8;j++){x+=Math.cos(a)*22+(rand()-.5)*18;y+=Math.sin(a)*22+(rand()-.5)*18;cg.lineTo(x,y);}cg.stroke();}
+    const chipTexture=new T.CanvasTexture(chipCanvas);chipTexture.colorSpace=T.SRGBColorSpace;
+    const chipMaterial=new T.MeshStandardMaterial({map:chipTexture,bumpMap:chipTexture,bumpScale:.055,transparent:true,roughness:1,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
+    const chipGeo=new T.PlaneGeometry(1,1);
+    function weatherPatch(x,y,z,w,h,rot=0){const m=new T.Mesh(chipGeo,chipMaterial);m.position.set(x,y,z);m.scale.set(w,h,1);m.rotation.y=rot;world.add(m);}
     function building(x,z,sx,sz,h,material){
       block(x,h/2,z,sx,h,sz,material,true);block(x,.38,z,sx+.08,.76,sz+.08,stone);block(x,3.5,z,sx+.2,.16,sz+.2,trim);block(x,h+.1,z,sx+.45,.22,sz+.45,trim);
       for(const side of [-1,1]){block(x+side*(sx/2-.12),h+.43,z,.24,.7,sz+.35,material);block(x,h+.43,z+side*(sz/2-.12),sx,.7,.24,material);}
       for(const face of [-1,1])for(let wx=x-sx/2+1.4;wx<x+sx/2-.7;wx+=2.6){windowUnit(wx,2,z+face*(sz/2+.03),face===1?0:Math.PI);if(h>6)windowUnit(wx,5.4,z+face*(sz/2+.03),face===1?0:Math.PI);}
       for(const side of [-1,1])for(let zz=z-sz/2+1.4;zz<z+sz/2-.7;zz+=2.6)windowUnit(x+side*(sx/2+.03),2,zz,side*Math.PI/2);
+      for(const face of [-1,1]){
+        weatherPatch(x-sx*.32,.75,z+face*(sz/2+.075),2.5,1.1,face===1?0:Math.PI);
+        weatherPatch(x+sx*.25,3.95,z+face*(sz/2+.075),1.7,.9,face===1?0:Math.PI);
+      }
+      for(const side of [-1,1])weatherPatch(x+side*(sx/2+.075),.6,z,1.7,.9,side*Math.PI/2);
       // Drain pipes, AC units, water tanks and antenna wires are architectural scale cues.
       cylinder(world,x+sx/2+.08,h/2,z-sz/2+.35,.055,h,0x746f61,10);
       block(x+.6,h+.65,z,1.4,1.1,1.1,teal);block(x+.6,h+1.25,z,1.5,.14,1.2,iron);
@@ -147,137 +164,56 @@
     // Distant scenery must never participate in navigation/hits inside the arena.
     return {colliders,spawn:new T.Vector3(0,0,18),botSpawns:[new T.Vector3(0,0,-18),new T.Vector3(17,0,-6),new T.Vector3(-17,0,-4),new T.Vector3(5,0,4)],mapName:'Квартал Альма'};
   }
-  function createCharacter(variant = 0) {
-    const actor = new T.Group();
-    const uniform = variant % 2 ? 0x697e74 : 0xab7951;
-    const cloth = variant % 2 ? 0x425750 : 0x735e49;
-    const skin = 0xc99b79, armor = 0x303e40, accent = 0xe9ab56;
-    const hips = box(actor, 0, .86, 0, .43, .22, .28, cloth);
-    const torso = new T.Group(); torso.position.y = 1.13; actor.add(torso);
-    box(torso, 0, .08, 0, .55, .48, .32, uniform);
-    box(torso, 0, .08, .19, .46, .4, .13, armor);
-    for (let i = -1; i <= 1; i++) box(torso, i * .135, .03, .28, .115, .2, .07, 0x53625c);
-    box(torso, -.22, .2, .24, .07, .11, .07, accent);
-    box(torso, 0, .08, -.24, .36, .43, .19, cloth);
-    box(torso, 0, -.14, .015, .56, .075, .36, armor);
-    const head = new T.Group(); head.position.set(0, 1.56, .01); actor.add(head);
-    box(head, 0, .025, 0, .28, .3, .27, skin);
-    box(head, 0, .13, -.012, .34, .14, .32, armor);
-    box(head, 0, .21, -.012, .27, .065, .25, armor);
-    box(head, 0, .08, .15, .3, .09, .04, 0x1c323c);
-    box(head, 0, .08, .176, .23, .047, .012, 0x8ec6ca);
-    box(head, 0, -.055, .15, .25, .13, .075, cloth);
-    const legs = [];
-    for (const side of [-1, 1]) {
-      const leg = new T.Group(); leg.position.set(side * .14, .84, 0); actor.add(leg);
-      box(leg, 0, -.32, 0, .2, .66, .22, uniform);
-      box(leg, 0, -.37, .13, .18, .18, .07, armor);
-      box(leg, 0, -.73, .055, .22, .18, .35, armor);
-      legs.push(leg);
+  function createCharacter(variant=0){
+    const actor=new T.Group(),green=variant%2;
+    const fabric=window.RetroDetailedWeapons.material('cloth').clone();fabric.color.setHex(green?0xd0dac8:0xdacbb1);
+    const armor=new T.MeshStandardMaterial({color:0x283338,roughness:.83});
+    const skin=new T.MeshStandardMaterial({color:0xb58d70,roughness:.85});
+    const glass=new T.MeshStandardMaterial({color:0x263f4a,metalness:.65,roughness:.22});
+    function ellipsoid(parent,pos,scale,material){const m=new T.Mesh(new T.SphereGeometry(1,24,16),material);m.position.set(...pos);m.scale.set(...scale);m.castShadow=true;parent.add(m);return m;}
+    function limb(parent,pos,length,radius,material){const g=new T.Group();g.position.set(...pos);parent.add(g);const m=new T.Mesh(new T.CapsuleGeometry(radius,Math.max(.02,length-radius*2),5,16),material);m.position.y=-length/2;m.castShadow=true;g.add(m);return g;}
+    const hips=ellipsoid(actor,[0,.84,0],[.225,.16,.15],fabric);
+    const torso=new T.Group();torso.position.set(0,1.12,0);actor.add(torso);
+    ellipsoid(torso,[0,.06,0],[.29,.32,.18],fabric);
+    ellipsoid(torso,[0,.06,.08],[.27,.26,.155],armor);
+    for(let i=-1;i<=1;i++){const p=box(torso,i*.14,-.015,.22,.12,.17,.075,0x475750);p.material=armor;}
+    const strap1=limb(torso,[-.20,.32,.09],.35,.025,armor);strap1.rotation.z=.12;
+    const strap2=limb(torso,[.20,.32,.09],.35,.025,armor);strap2.rotation.z=-.12;
+    ellipsoid(torso,[0,.08,-.20],[.20,.24,.12],fabric);
+    const head=new T.Group();head.position.set(0,1.57,0);actor.add(head);
+    ellipsoid(head,[0,.02,.015],[.14,.19,.13],skin);
+    const helmet=new T.Mesh(new T.SphereGeometry(.178,28,16,0,Math.PI*2,0,Math.PI*.58),armor);helmet.position.y=.095;helmet.scale.z=.95;helmet.castShadow=true;head.add(helmet);
+    ellipsoid(head,[0,-.055,.10],[.135,.095,.06],fabric);
+    for(const x of [-.065,.065]){ellipsoid(head,[x,.047,.134],[.066,.044,.026],armor);ellipsoid(head,[x,.05,.153],[.052,.029,.013],glass);}
+    for(const x of [-.163,.163])ellipsoid(head,[x,.025,0],[.035,.075,.052],armor);
+    const legs=[];
+    for(const side of [-1,1]){
+      const leg=limb(actor,[side*.135,.84,0],.41,.103,fabric);
+      const shin=limb(leg,[0,-.40,0],.34,.075,fabric);ellipsoid(leg,[0,-.35,.067],[.09,.10,.06],armor);
+      ellipsoid(shin,[0,-.31,.055],[.095,.075,.165],armor);legs.push(leg);
     }
-    const arms = [];
-    for (const side of [-1, 1]) {
-      const arm = new T.Group(); arm.position.set(side * .345, 1.35, .01); actor.add(arm);
-      box(arm, 0, -.17, 0, .18, .36, .2, uniform);
-      box(arm, 0, -.36, .14, .17, .16, .37, uniform);
-      box(arm, 0, -.35, .35, .17, .15, .16, armor);
-      if (side === -1) box(arm, -.1, -.1, 0, .025, .13, .14, accent);
-      arms.push(arm);
+    const arms=[];
+    for(const side of [-1,1]){
+      const arm=limb(actor,[side*.28,1.35,.01],.30,.092,fabric);arm.rotation.z=side*.13;
+      const fore=limb(arm,[0,-.28,.02],.28,.072,fabric);fore.rotation.x=-1.05;
+      ellipsoid(fore,[0,-.27,.01],[.067,.077,.055],armor);arms.push(arm);
     }
-    const gun = new T.Group(); gun.position.set(.15, 1.02, .38); actor.add(gun);
-    box(gun, 0, 0, .14, .12, .17, .52, armor);
-    box(gun, 0, -.1, .08, .1, .2, .14, cloth);
-    cylinder(gun, 0, .035, .55, .035, .4, 0x293336, 6, 'z');
-    const muzzle = new T.Object3D(); muzzle.position.set(0, .035, .78); gun.add(muzzle);
-    actor.userData.muzzle = muzzle;
-    let deathStarted = null;
-    actor.userData.animate = function (time, speed, dead) {
-      if (dead && deathStarted === null) deathStarted = time;
-      if (!dead) deathStarted = null;
-      const fall = deathStarted === null ? 0 : Math.min(1, Math.max(0, (time - deathStarted) / .35));
-      const easedFall = fall * fall * (3 - 2 * fall);
-      const firing = Math.min(1, Math.max(0, Number(actor.userData.firing || 0) / .12));
-      const amount = dead ? 0 : Math.min(1, Math.abs(speed) / 4);
-      const stride = Math.sin(time * 11) * .6 * amount;
-      legs[0].rotation.x = stride; legs[1].rotation.x = -stride;
-      hips.position.y = .86 + Math.abs(Math.sin(time * 11)) * .025 * amount;
-      torso.rotation.z = Math.sin(time * 5.5) * .035 * amount;
-      torso.position.y = 1.13 + Math.sin(time * 2.4) * .009;
-      arms[0].rotation.x = -.14 - stride * .12; arms[1].rotation.x = -.08 + stride * .12;
-      head.rotation.y = Math.sin(time * 1.2) * .035;
-      actor.rotation.z = -Math.PI / 2 * easedFall;
-      torso.rotation.x = firing * .065;
-      arms[0].rotation.x -= firing * .11;
-      arms[1].rotation.x -= firing * .11;
-      gun.position.z = .38 - firing * .045;
-      gun.rotation.x = Math.sin(time * 2.4) * .012 - firing * .12;
+    const gun=new T.Group();gun.position.set(.13,1.035,.34);actor.add(gun);
+    const receiver=box(gun,0,0,.10,.095,.13,.32,0x303b42);receiver.material=armor;
+    cylinder(gun,0,.025,.4,.025,.35,0x424b50,20,'z');cylinder(gun,0,.025,.60,.032,.06,0x28323a,20,'z');
+    const magazine=box(gun,0,-.13,.10,.065,.2,.10,0x303b42);magazine.rotation.x=-.16;
+    const muzzle=new T.Object3D();muzzle.position.set(0,.025,.64);gun.add(muzzle);actor.userData.muzzle=muzzle;
+    let died=null;
+    actor.userData.animate=(time,speed,dead)=>{
+      if(dead&&died===null)died=time;if(!dead)died=null;
+      const a=dead?0:Math.min(1,speed/3),stride=Math.sin(time*10)*.52*a,firing=Math.max(0,actor.userData.firing||0)/.12;
+      legs[0].rotation.x=stride;legs[1].rotation.x=-stride;torso.rotation.z=Math.sin(time*5)*.025*a;
+      arms[0].rotation.x=-.25-stride*.09-firing*.1;arms[1].rotation.x=-.3+stride*.09-firing*.1;
+      torso.position.y=1.12+Math.sin(time*2)*.008;gun.position.z=.34-firing*.045;gun.rotation.x=-firing*.09;
+      const t=died===null?0:Math.min(1,Math.max(0,(time-died)/.4));actor.rotation.z=-Math.PI/2*t*t*(3-2*t);head.rotation.y=Math.sin(time*.9)*.03;
     };
     return actor;
   }
-  function createWeapon(kind = 'rifle') {
-    const gun = new T.Group();
-    const metal = 0x29393c, steel = 0x526164, body = 0xb79a69, grip = 0x374644, trim = 0x6fb8af;
-    const short = kind === 'pistol';
-    const long = kind === 'sniper';
-    const shotgun = kind === 'shotgun';
-    const length = short ? .31 : long ? .68 : shotgun ? .59 : .52;
-    box(gun, 0, 0, -.08, short ? .11 : .14, short ? .12 : .17, length, body);
-    box(gun, 0, .085, -.11, short ? .105 : .13, .055, length * 1.03, metal);
-    box(gun, .076, -.003, .01, .012, .07, .13, steel);
-    box(gun, .084, .012, -.07, .009, .025, .11, trim);
-    const rear = short ? .07 : .15;
-    const handle = box(gun, 0, -.14, rear, .09, .23, .13, grip);
-    handle.rotation.x = -.22;
-    box(gun, 0, -.105, rear - .12, .08, .025, .14, metal);
-    box(gun, 0, -.07, rear - .18, .08, .09, .025, metal);
-    const magazine = box(gun, 0, -.2, -.1, short ? .07 : .105, short ? .1 : .27, short ? .09 : .15, metal);
-    magazine.rotation.x = shotgun ? 0 : -.12;
-    gun.userData.magazine = magazine;
-    const barrelEnd = short ? -.36 : long ? -1.03 : shotgun ? -.94 : -.81;
-    cylinder(gun, 0, .026, barrelEnd + .19, short ? .027 : .032, .4, steel, 8, 'z');
-    cylinder(gun, 0, .026, barrelEnd, short ? .034 : .045, .07, metal, 8, 'z');
-    cylinder(gun, 0, .026, barrelEnd - .038, short ? .021 : .029, .004, 0x101b20, 8, 'z');
-    if (!short) {
-      box(gun, 0, -.015, .37, .12, .18, .32, grip);
-      box(gun, 0, -.025, .55, .14, .23, .06, metal);
-      box(gun, 0, .025, -.38, .13, .14, .26, body);
-      for (let i = 0; i < 6; i++) box(gun, 0, .12, -.3 + i * .065, .15, .016, .023, metal);
-      for (let i = 0; i < 4; i++) box(gun, .072, .01, -.45 + i * .07, .012, .07, .022, metal);
-    }
-    if (long) {
-      cylinder(gun, 0, .22, -.13, .075, .43, metal, 10, 'z');
-      cylinder(gun, 0, .22, .1, .085, .055, steel, 10, 'z');
-      cylinder(gun, 0, .22, .131, .066, .008, 0x426b78, 10, 'z');
-      box(gun, 0, .15, -.1, .07, .13, .13, metal);
-      cylinder(gun, .105, .25, -.14, .034, .07, steel, 8, 'x');
-    } else {
-      box(gun, 0, .14, short ? .02 : .14, .075, .06, .045, metal);
-      box(gun, 0, .17, short ? .02 : .14, .022, .015, .02, trim);
-      box(gun, 0, .13, short ? -.2 : -.48, .03, .07, .03, metal);
-    }
-    if (shotgun) {
-      cylinder(gun, 0, -.05, -.65, .034, .52, metal, 8, 'z');
-      box(gun, 0, -.045, -.53, .17, .13, .28, grip);
-      for (let i = 0; i < 5; i++) box(gun, 0, -.12, -.65 + i * .055, .175, .015, .025, steel);
-      magazine.visible = false;
-    }
-    // Two original fingerless tactical gloves, sleeves and a wrist display.
-    const handColor = 0x344b4d, skin = 0xc89b7a, sleeve = 0x718879;
-    const rightHand = box(gun, .045, -.15, .16, .13, .17, .19, handColor);
-    rightHand.rotation.x = -.2;
-    box(gun, .115, -.09, .085, .045, .07, .11, skin);
-    const rightArm = box(gun, .1, -.29, .38, .18, .2, .42, sleeve); rightArm.rotation.x = -.3;
-    if (!short) {
-      box(gun, -.035, -.13, -.38, .19, .12, .18, handColor);
-      for (let i = 0; i < 3; i++) box(gun, -.1 + i * .047, -.09, -.45, .035, .06, .075, skin);
-      const leftArm = box(gun, -.2, -.29, -.11, .18, .19, .48, sleeve); leftArm.rotation.y = -.55; leftArm.rotation.x = .23;
-      box(gun, -.17, -.19, -.26, .16, .055, .12, metal);
-      box(gun, -.17, -.156, -.26, .1, .01, .075, trim);
-    }
-    const muzzle = new T.Object3D(); muzzle.position.set(0, .026, barrelEnd - .06); gun.add(muzzle);
-    gun.userData.muzzle = muzzle;
-    gun.userData.kind = kind;
-    return gun;
-  }
+  function createWeapon(kind){return window.RetroDetailedWeapons.createWeapon(kind);}
   window.RetroAssets = { createWorld, createCharacter, createWeapon };
 })();

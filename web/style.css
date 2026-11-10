@@ -11,3 +11,7 @@
 .aim-button{right:215px;bottom:230px}
 @media(max-width:650px){.aim-button{right:175px;bottom:245px;width:42px;height:42px}}
 @media(max-height:550px) and (min-width:651px){.aim-button{right:194px;bottom:194px}}
+
+.inspect-button{right:275px;bottom:160px}
+@media(max-width:650px){.inspect-button{right:175px;bottom:185px;width:42px;height:42px}}
+@media(max-height:550px) and (min-width:651px){.inspect-button{right:255px;bottom:130px}}

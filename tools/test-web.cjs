@@ -131,6 +131,17 @@ async function desktop(browser) {
   assert.equal((await snapshot(page)).health,0,'lethal damage kills player');
   await step(page,95);
   assert.equal((await snapshot(page)).health,100,'respawn restores player health');
+  assert((await snapshot(page)).bulletMarks>0,'wall hit leaves a persistent surface mark');
+  const marks=(await snapshot(page)).bulletMarks;
+  await step(page,40);
+  assert.equal((await snapshot(page)).bulletMarks,marks,'marks survive transient effects');
+  await page.evaluate(()=>{
+    window.__retroTest.setPosition(0,0,18);
+    window.__retroTest.positionBot(1,0,-4,14);
+    window.__retroTest.aimAtBot(1);
+  });
+  await page.mouse.click(480,320,{delay:1});
+  await page.waitForFunction(n=>window.__retroTest.snapshot().bulletMarks>n,marks);
   await page.evaluate(() => document.getElementById('pause-button').click());
   before = await snapshot(page);
   assert.equal(before.state,'paused');

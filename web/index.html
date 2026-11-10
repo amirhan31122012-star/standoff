@@ -58,7 +58,7 @@
         </aside>
       </div>
       <footer class="controls-guide">
-        <div class="desktop-guide"><span><kbd>W A S D</kbd> Движение</span><span><kbd>МЫШЬ</kbd> Обзор</span><span><kbd>ЛКМ</kbd> Огонь</span><span><kbd>R</kbd> Перезарядка</span><span><kbd>ПРОБЕЛ</kbd> Прыжок</span><span><kbd>C</kbd> Присесть</span><span><kbd>1–4</kbd> Оружие</span></div>
+        <div class="desktop-guide"><span><kbd>W A S D</kbd> Движение</span><span><kbd>МЫШЬ</kbd> Обзор</span><span><kbd>ЛКМ</kbd> Огонь</span><span><kbd>R</kbd> Перезарядка</span><span><kbd>ПРОБЕЛ</kbd> Прыжок</span><span><kbd>C</kbd> Присесть</span><span><kbd>1–4</kbd> Оружие</span><span><kbd>F</kbd> Осмотр</span></div>
         <div class="mobile-guide"><span>ЛЕВЫЙ СТИК — ДВИЖЕНИЕ</span><span>ПРАВАЯ ОБЛАСТЬ — ОБЗОР</span><span>КНОПКИ — ДЕЙСТВИЯ</span></div>
       </footer>
     </div>
@@ -80,12 +80,15 @@
     <button class="touch-button reload-button" data-action="reload" aria-label="Перезарядка">↻</button>
     <button class="touch-button jump-button" data-action="jump" aria-label="Прыжок">↑</button>
     <button class="touch-button crouch-button" data-action="crouch" aria-label="Присесть">↓</button>
+    <button class="touch-button inspect-button" data-action="inspect" aria-label="Осмотреть оружие">◇</button>
     <button class="touch-button aim-button" data-action="aim" aria-label="Прицелиться">+</button>
     <button class="touch-button switch-button" data-action="switch" aria-label="Сменить оружие">⇄</button>
   </div>
   <noscript>Для запуска игры включи JavaScript в браузере.</noscript>
   <script src="vendor/three.min.js"></script>
   <script src="assets.js"></script>
+  <script src="models/weapons-meshes.js"></script>
+  <script src="weapons.js"></script>
   <script src="game.js"></script>
   <script>window.addEventListener('load',function(){if(!window.THREE){var e=document.getElementById('error');e.hidden=false;e.textContent='Не найден графический модуль. Распакуй ZIP целиком и открой игру из распакованной папки.';}});</script>
 </body>
