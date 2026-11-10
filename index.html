@@ -6,7 +6,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%23171c1c%27/%3E%3Cpath d=%27M8 8h16v16H8zM16 4v24M4 16h24%27 stroke=%27%23e9b264%27 fill=%27none%27/%3E%3C/svg%3E">
   <meta name="theme-color" content="#171c1c">
   <title>Полигон — Сектор 07</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?rev=gl-fallback-1">
 </head>
 <body>
   <canvas id="game" aria-label="Трёхмерный тренировочный полигон"></canvas>
@@ -86,10 +86,11 @@
   </div>
   <noscript>Для запуска игры включи JavaScript в браузере.</noscript>
   <script src="vendor/three.min.js"></script>
+  <script src="graphics.js?rev=gl-fallback-1"></script>
   <script src="assets.js"></script>
   <script src="models/weapons-meshes.js"></script>
   <script src="weapons.js"></script>
-  <script src="game.js"></script>
+  <script src="game.js?rev=gl-fallback-1"></script>
   <script>window.addEventListener('load',function(){if(!window.THREE){var e=document.getElementById('error');e.hidden=false;e.textContent='Не найден графический модуль. Распакуй ZIP целиком и открой игру из распакованной папки.';}});</script>
 </body>
 </html>
