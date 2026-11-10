@@ -3,10 +3,11 @@
   'use strict';
   const T = window.THREE;
   const materials = new Map();
-  const boxGeometry = new T.BoxGeometry(1, 1, 1);
+  const bevelShape=new T.Shape();bevelShape.moveTo(-.48,-.48);bevelShape.lineTo(.48,-.48);bevelShape.lineTo(.48,.48);bevelShape.lineTo(-.48,.48);bevelShape.closePath();
+  const boxGeometry = new T.ExtrudeGeometry(bevelShape,{depth:.96,bevelEnabled:true,bevelSize:.02,bevelThickness:.02,bevelSegments:2,steps:1});boxGeometry.translate(0,0,-.48);
   function mat(color, extra) {
     const key = String(color) + JSON.stringify(extra || {});
-    if (!materials.has(key)) materials.set(key, new T.MeshLambertMaterial(Object.assign({ color, flatShading: true }, extra)));
+    if (!materials.has(key)) materials.set(key, new T.MeshStandardMaterial(Object.assign({ color, roughness: .72, metalness: .12 }, extra)));
     return materials.get(key);
   }
   function box(parent, x, y, z, sx, sy, sz, color, extra) {
@@ -39,135 +40,112 @@
     m.position.set(x, y, z); m.rotation.y = rotation; parent.add(m); return m;
   }
   function createWorld(scene) {
-    const colliders = [];
-    const world = new T.Group(); world.name = 'Sand courtyard'; scene.add(world);
-    const sand = 0xc8aa76, pale = 0xdcc79a, darkSand = 0xb5986c, teal = 0x32696a;
-    function solid(x, y, z, sx, sy, sz, color) {
-      const m = box(world, x, y, z, sx, sy, sz, color);
-      colliders.push(new T.Box3(new T.Vector3(x - sx / 2, y - sy / 2, z - sz / 2), new T.Vector3(x + sx / 2, y + sy / 2, z + sz / 2)));
-      return m;
+    const colliders=[],world=new T.Group();scene.add(world);world.name='Alma old town';
+    // Deterministic, embedded surface maps. All material detail remains offline.
+    let seed=3719;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
+    function surface(kind,base){
+      const c=document.createElement('canvas');c.width=c.height=512;const g=c.getContext('2d');g.fillStyle=base;g.fillRect(0,0,512,512);
+      const im=g.getImageData(0,0,512,512);for(let i=0;i<im.data.length;i+=4){const n=(rand()-.5)*(kind==='plaster'?23:34);for(let k=0;k<3;k++)im.data[i+k]+=n;}g.putImageData(im,0,0);
+      if(kind==='stone'||kind==='paving'){
+        const row=kind==='stone'?64:128;
+        for(let y=0;y<512;y+=row){g.strokeStyle='rgba(42,35,26,.38)';g.lineWidth=4;g.beginPath();g.moveTo(0,y);g.lineTo(512,y);g.stroke();
+          for(let x=-128;x<512;x+=128){const xx=x+(y/row%2)*64;g.strokeStyle='rgba(40,34,27,.36)';g.strokeRect(xx,y,128,row);g.fillStyle=`rgba(255,244,215,${rand()*.09})`;g.fillRect(xx+4,y+4,120,row-8);g.strokeStyle='rgba(255,248,221,.22)';g.lineWidth=2;g.beginPath();g.moveTo(xx+3,y+row-3);g.lineTo(xx+3,y+3);g.lineTo(xx+125,y+3);g.stroke();}
+        }
+      }else if(kind==='wood'){
+        for(let x=0;x<512;x+=64){g.fillStyle='rgba(20,12,6,.3)';g.fillRect(x,0,4,512);for(let i=0;i<26;i++){g.strokeStyle=`rgba(28,16,8,${rand()*.25})`;g.beginPath();const a=x+rand()*64;g.moveTo(a,0);g.bezierCurveTo(a+12,160,a-10,340,a+5,512);g.stroke();}}
+      }else{for(let i=0;i<180;i++){g.fillStyle=`rgba(70,49,26,${rand()*.12})`;g.fillRect(rand()*512,rand()*512,rand()*35+2,rand()*8+1);}}
+      const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.anisotropy=4;
+      // Height-derived tangent-space normal map adds masonry edges under sunlight.
+      const nc=document.createElement('canvas');nc.width=nc.height=512;const ng=nc.getContext('2d'),data=g.getImageData(0,0,512,512).data,ni=ng.createImageData(512,512);
+      const value=(x,y)=>data[(((y+512)%512)*512+(x+512)%512)*4];
+      for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4;ni.data[i]=128+(value(x-1,y)-value(x+1,y))*.8;ni.data[i+1]=128+(value(x,y-1)-value(x,y+1))*.8;ni.data[i+2]=250;ni.data[i+3]=255;}ng.putImageData(ni,0,0);
+      const normal=new T.CanvasTexture(nc);normal.wrapS=normal.wrapT=T.RepeatWrapping;
+      return new T.MeshStandardMaterial({map:tex,normalMap:normal,normalScale:new T.Vector2(.55,.55),roughness:.92,color:0xffffff});
     }
-    box(world, 0, -0.15, 0, 120, 0.3, 120, 0xc6b38c);
-    // A slightly broken tile pattern gives readable speed and scale without textures.
-    for (let x = -20; x <= 20; x += 4) for (let z = -22; z <= 22; z += 4) {
-      flatMark(world, x, z, 3.94, 3.94, ((x + z) % 8 === 0) ? 0xc4b28f : 0xcbb994);
+    const plaster=surface('plaster','#c6b398'),rose=surface('plaster','#bd927b'),white=surface('plaster','#ddd3bc'),stone=surface('stone','#a99375'),paving=surface('paving','#aa9c81'),wood=surface('wood','#725137');
+    const teal=new T.MeshStandardMaterial({color:0x356b68,roughness:.62}),iron=new T.MeshStandardMaterial({color:0x394443,metalness:.7,roughness:.47}),trim=new T.MeshStandardMaterial({color:0xd7c8aa,roughness:.9}),dark=new T.MeshStandardMaterial({color:0x253434,roughness:.6});
+    const geoCache=new Map();
+    function block(x,y,z,sx,sy,sz,material,physical=false){
+      // Geometry carries world-scaled UVs so a large facade never stretches a tile.
+      const key=[sx,sy,sz].join(',');if(!geoCache.has(key)){const geo=new T.BoxGeometry(sx,sy,sz);const uv=geo.attributes.uv;for(let f=0;f<6;f++){const u=[sz,sz,sx,sx,sx,sx][f]/3,v=[sy,sy,sz,sz,sy,sy][f]/3;for(let n=0;n<4;n++){const i=f*4+n;uv.setXY(i,uv.getX(i)*u,uv.getY(i)*v);}}geoCache.set(key,geo);}
+      const m=new T.Mesh(geoCache.get(key),material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;world.add(m);
+      if(physical)colliders.push(new T.Box3(new T.Vector3(x-sx/2,y-sy/2,z-sz/2),new T.Vector3(x+sx/2,y+sy/2,z+sz/2)));return m;
     }
-    // Boundary walls are full physical AABBs; decorative roofs stay outside the paths.
-    solid(-22, 2.5, 0, 1, 5, 49, sand); solid(22, 2.5, 0, 1, 5, 49, sand);
-    solid(0, 2.5, -24, 45, 5, 1, pale); solid(0, 2.5, 24, 45, 5, 1, darkSand);
-    for (let z = -22; z <= 22; z += 4) {
-      box(world, -21.85, 2.8, z, 1.1, 5.6, 0.65, pale);
-      box(world, 21.85, 2.8, z, 1.1, 5.6, 0.65, pale);
+    block(0,-.15,0,110,.3,110,paving);
+    // Outer urban perimeter, broken roofline and masonry plinth.
+    for(const x of [-22,22]){block(x,3.5,0,1,7,49,stone,true);block(x,7.05,0,1.25,.25,49,trim);}
+    for(const z of [-24,24]){block(0,3.5,z,45,7,1,stone,true);block(0,7.05,z,45,.25,1.25,trim);}
+    function windowUnit(x,y,z,rotation=0){
+      const group=new T.Group();world.add(group);group.position.set(x,y,z);group.rotation.y=rotation;
+      function part(a,b,c,sx,sy,sz,m){const mesh=block(a,b,c,sx,sy,sz,m);group.add(mesh);}
+      part(0,0,0,1.05,1.6,.12,dark);part(-.58,0,.05,.14,1.85,.22,trim);part(.58,0,.05,.14,1.85,.22,trim);part(0,.88,.05,1.3,.15,.22,trim);part(0,-.88,.12,1.4,.17,.45,trim);
+      for(const side of [-1,1]){part(side*.32,0,.11,.51,1.55,.1,teal);for(let i=0;i<8;i++)part(side*.32,-.64+i*.18,.18,.48,.05,.06,dark);}
     }
-    for (let x = -20; x <= 20; x += 4) {
-      box(world, x, 5.15, -24, 1.5, 0.5, 1.2, sand);
-      box(world, x, 5.15, 24, 1.5, 0.5, 1.2, sand);
+    function building(x,z,sx,sz,h,material){
+      block(x,h/2,z,sx,h,sz,material,true);block(x,.38,z,sx+.08,.76,sz+.08,stone);block(x,3.5,z,sx+.2,.16,sz+.2,trim);block(x,h+.1,z,sx+.45,.22,sz+.45,trim);
+      for(const side of [-1,1]){block(x+side*(sx/2-.12),h+.43,z,.24,.7,sz+.35,material);block(x,h+.43,z+side*(sz/2-.12),sx,.7,.24,material);}
+      for(const face of [-1,1])for(let wx=x-sx/2+1.4;wx<x+sx/2-.7;wx+=2.6){windowUnit(wx,2,z+face*(sz/2+.03),face===1?0:Math.PI);if(h>6)windowUnit(wx,5.4,z+face*(sz/2+.03),face===1?0:Math.PI);}
+      for(const side of [-1,1])for(let zz=z-sz/2+1.4;zz<z+sz/2-.7;zz+=2.6)windowUnit(x+side*(sx/2+.03),2,zz,side*Math.PI/2);
+      // Drain pipes, AC units, water tanks and antenna wires are architectural scale cues.
+      cylinder(world,x+sx/2+.08,h/2,z-sz/2+.35,.055,h,0x746f61,10);
+      block(x+.6,h+.65,z,1.4,1.1,1.1,teal);block(x+.6,h+1.25,z,1.5,.14,1.2,iron);
+      const unit=block(x-sx*.26,4,z+sz/2+.28,1.1,.7,.6,trim);cylinder(world,x-sx*.26,4,z+sz/2+.61,.26,.04,0x5a625e,16,'z');
+      cylinder(world,x-sx*.3,h+1,z-.8,.035,2.1,0x4d514b,8);
     }
-    function building(x, z, sx, sz, height, color, front) {
-      solid(x, height / 2, z, sx, height, sz, color);
-      box(world, x, height + .16, z, sx + .32, .32, sz + .32, pale);
-      box(world, x, .18, z, sx + .12, .36, sz + .12, darkSand);
-      for (let dx = -sx / 2 + 1; dx < sx / 2; dx += 2.2) {
-        const wz = z + front * (sz / 2 + .025);
-        box(world, x + dx, height * .65, wz, .92, 1.35, .08, teal);
-        box(world, x + dx, height * .65, wz + front * .055, .07, 1.42, .03, 0x90aaa0);
-        box(world, x + dx, height * .65, wz + front * .065, 1, .07, .03, 0x90aaa0);
-        box(world, x + dx, height * .65 - .75, wz, 1.17, .15, .3, pale);
-      }
-      // Water tanks, chimneys and antennas create a low-poly skyline.
-      cylinder(world, x + .8, height + .7, z, .75, 1.05, 0x9f9c86, 10);
-      cylinder(world, x - sx * .3, height + 1.2, z + .5, .045, 2.2, 0x454d48, 6);
-      box(world, x - sx * .3, height + 1.9, z + .5, 1.1, .04, .04, 0x454d48);
+    // Two connected courtyards, side alleys and a covered cross passage.
+    building(-16,-16,11,14,8.8,white);building(16,-16,11,14,7.6,rose);
+    building(-16,16,11,13,8.1,rose);building(16,16,11,13,9.2,white);
+    building(-9,3.5,7,7,6.6,plaster);building(10,3.5,7,7,7.6,white);
+    // Usable vaulted passage. The opening is real geometry, not a painted doorway.
+    function arch(x,z,width,spring,rotation=0){
+      const g=new T.Group();g.position.set(x,0,z);g.rotation.y=rotation;world.add(g);const r=width/2,t=.52;
+      const shape=new T.Shape();shape.moveTo(-r-t,0);shape.absarc(0,0,r+t,Math.PI,0,true);shape.lineTo(r,0);shape.absarc(0,0,r,0,Math.PI,false);shape.closePath();
+      const a=new T.Mesh(new T.ExtrudeGeometry(shape,{depth:.85,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.035,bevelThickness:.035,curveSegments:24}),stone);a.position.set(0,spring,-.425);a.castShadow=a.receiveShadow=true;g.add(a);
+      for(const side of [-1,1]){const px=x+Math.cos(rotation)*side*(r+t/2),pz=z-Math.sin(rotation)*side*(r+t/2);block(px,spring/2,pz,rotation?.9:t,spring,rotation?t:.9,stone,true);}
+      // Wedge-shaped keystones articulate the curved arch rather than a square frame.
+      for(let i=0;i<=12;i++){const angle=i/12*Math.PI;const k=new T.Mesh(new T.BoxGeometry(.19,.58,.94),trim);k.position.set(Math.cos(angle)*(r+t/2),spring+Math.sin(angle)*(r+t/2),0);k.rotation.z=angle-Math.PI/2;k.castShadow=true;g.add(k);}
     }
-    building(-15, -15, 12, 12, 6.2, sand, 1);
-    building(15, -16, 12, 10, 7.2, pale, 1);
-    building(-16, 15.5, 10, 14, 5.5, darkSand, -1);
-    building(16, 16, 10, 13, 5.8, sand, -1);
-    sign(world, 'DEPOT 07', 0, 3.7, -23.45, 7, 1.6);
-    sign(world, 'SAND YARD', 0, 3.6, 23.45, 7, 1.5, Math.PI);
-    // South gate with a painted shutter, creating a memorable player spawn.
-    box(world, 0, 1.45, 23.42, 6.5, 2.9, .12, teal);
-    for (let y = .25; y < 2.9; y += .28) box(world, 0, y, 23.33, 6.4, .035, .07, 0x244a4c);
-    // The central cargo unit splits the main sightline; three lanes remain open.
-    solid(-2.3, 1.45, -1.5, 5.4, 2.9, 8.5, teal);
-    for (let z = -5.5; z <= 2.5; z += .55) {
-      box(world, -5.03, 1.45, z, .08, 2.7, .09, 0x275555);
-      box(world, .43, 1.45, z, .08, 2.7, .09, 0x437b79);
+    arch(0,7.2,8,2.25);block(0,7.4,7.2,10,1.6,1.2,plaster);block(0,8.3,7.2,10.4,.22,1.55,trim);
+    arch(-16,-2,5,2.25);arch(17,7,4.5,2.3);
+    sign(world,'ALMA  /  OLD QUARTER',0,6.9,7.83,5,.55);
+    // Central fountain: octagonal stone basin with a carved center and water surface.
+    const basin=new T.Mesh(new T.CylinderGeometry(2.5,2.65,.7,12),stone);basin.position.set(0,.35,-6);basin.receiveShadow=basin.castShadow=true;world.add(basin);
+    colliders.push(new T.Box3(new T.Vector3(-2.55,0,-8.55),new T.Vector3(2.55,.8,-3.45)));
+    const water=new T.Mesh(new T.CircleGeometry(2.25,32),new T.MeshStandardMaterial({color:0x438c8c,metalness:.35,roughness:.16,transparent:true,opacity:.85}));water.rotation.x=-Math.PI/2;water.position.set(0,.72,-6);world.add(water);
+    cylinder(world,0,1.4,-6,.43,1.5,0xc7b998,16);cylinder(world,0,2.2,-6,1.05,.2,0xc7b998,20);cylinder(world,0,2.55,-6,.19,.65,0xc7b998,16);
+    colliders.push(new T.Box3(new T.Vector3(-.5,.7,-6.5),new T.Vector3(.5,2.9,-5.5)));
+    function crate(x,z,s=1.8,h=s){block(x,h/2,z,s,h,s,wood,true);for(const y of [.12,h-.12])block(x,y,z,s+.1,.13,s+.1,iron);for(const side of [-1,1]){block(x+side*s*.4,h/2,z+s/2+.025,.08,h,.04,iron);}}
+    crate(-5.5,-12,2.1);crate(6.8,-10,2.5);crate(9,-7.7,1.4);crate(5,12,2.2,1.15);crate(-7,12,1.7);crate(-2.3,-.4,2,2.2);
+    // Market stalls have canvas roofs, timber counters, rugs, baskets and produce.
+    for(const z of [-5,0,5]){
+      block(-19,.65,z,3,1.3,1.45,wood,true);
+      for(const dx of [-1.5,1.5])block(-19+dx,1.65,z-.65,.1,3.3,.1,wood);
+      for(let stripe=0;stripe<10;stripe++){const roof=block(-20.6+stripe*.35,3.05,z,.36,.07,2.4,stripe%2?teal:trim);roof.rotation.x=.13;}
+      for(let i=0;i<12;i++){const fruit=new T.Mesh(new T.SphereGeometry(.12,8,6),mat(i%3?0xb48c38:0x897b3b));fruit.position.set(-20.2+(i%6)*.45,1.37,z+Math.floor(i/6)*.3);world.add(fruit);}
     }
-    box(world, -2.3, 2.94, -1.5, 5.55, .11, 8.65, 0x467a75);
-    sign(world, '07', -2.3, 1.65, 2.78, 2, 1.2);
-    function crate(x, z, size = 1.8, height = size, color = 0x9b7950) {
-      solid(x, height / 2, z, size, height, size, color);
-      box(world, x, .12, z, size + .12, .18, size + .12, 0x695744);
-      box(world, x, height - .12, z, size + .12, .18, size + .12, 0x695744);
-      box(world, x - size * .33, height / 2, z + size / 2 + .025, .12, height, .06, 0xb89b6e);
-      box(world, x + size * .33, height / 2, z + size / 2 + .025, .12, height, .06, 0xb89b6e);
-      box(world, x, height / 2, z + size / 2 + .055, size * .55, height * .24, .02, pale);
+    // A low cover wall forms a second bomb-site-like courtyard with multiple entrances.
+    block(16,.7,-3,7,1.4,.65,stone,true);block(19,.7,0,.65,1.4,5.4,stone,true);
+    sign(world,'A  →',6.45,2.6,7.05,1.3,.7);sign(world,'←  B',-5.65,2.6,7.05,1.3,.7);
+    for(const [x,z] of [[15,-12],[-16,12]]){const r=new T.Mesh(new T.RingGeometry(2.1,2.16,48),new T.MeshBasicMaterial({color:0xb78a44,transparent:true,opacity:.6}));r.rotation.x=-Math.PI/2;r.position.set(x,.018,z);world.add(r);}
+    // Rugs, doors, chipped wall patches and scattered gravel break up clean surfaces.
+    for(const [x,z] of [[-16,9.45],[16,-8.95]]){
+      const door=block(x,1.3,z,1.8,2.6,.09,wood);block(x,.03,z+1.2,2.8,.025,2.1,teal);for(let i=0;i<6;i++)block(x-1.2+i*.48,.05,z+1.2,.07,.01,2,trim);
+      for(const side of [-1,1])cylinder(world,x+side*1.4,.4,z+.6,.28,.8,0x9a6450,16);
     }
-    crate(-9, 5.5, 2.2); crate(-11.5, 4.7, 1.7); crate(6.8, -9, 2.5);
-    crate(10, -7.7, 1.7); crate(5.5, 9, 2.2, 1.2); crate(-5.8, -13, 1.7);
-    // Waist-high stone shelter on the right and a fabric market canopy.
-    solid(12.8, .65, .5, 4.5, 1.3, 3.5, pale);
-    solid(14.6, 1.1, -1.3, .3, 2.2, .3, 0x6d614e);
-    solid(11, 1.1, -1.3, .3, 2.2, .3, 0x6d614e);
-    solid(14.6, 1.1, 2.3, .3, 2.2, .3, 0x6d614e);
-    solid(11, 1.1, 2.3, .3, 2.2, .3, 0x6d614e);
-    for (let i = 0; i < 8; i++) {
-      const roof = box(world, 10.8 + i * .57, 3.2, .5, .59, .09, 4.15, i % 2 ? 0xe6c67f : 0xa35437);
-      roof.rotation.x = .08;
+    const pebbleGeo=new T.DodecahedronGeometry(.06,0);
+    for(let i=0;i<80;i++){const x=(rand()-.5)*41,z=(rand()-.5)*45;const pebble=new T.Mesh(pebbleGeo,stone);pebble.position.set(x,.025,z);pebble.scale.setScalar(.4+rand());pebble.scale.y*=.5;world.add(pebble);}
+    // Overhead cables and street lanterns frame the skyline.
+    for(const z of [-11,12]){
+      const pts=[];for(let i=0;i<=20;i++){const t=i/20;pts.push(new T.Vector3(-21+42*t,8-Math.sin(t*Math.PI)*1.4,z));}
+      world.add(new T.Line(new T.BufferGeometry().setFromPoints(pts),new T.LineBasicMaterial({color:0x343c37})));
     }
-    sign(world, 'A', 12.8, 1.7, 2.29, .65, .65);
-    // Ground stripes and objective ring, inlaid rather than floating UI.
-    for (let z = 6; z <= 18; z += 2.3) flatMark(world, -.4, z, .13, 1.1, 0xf0d68d, .85);
-    for (let x = 7; x <= 17; x += 2) flatMark(world, x, -13, 1, .13, 0xf0d68d, .85);
-    const ring = new T.Mesh(new T.RingGeometry(2.3, 2.4, 40), mat(0xe1b85c, { side: T.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(7, .024, -2); world.add(ring);
-    function barrel(x, z, color) {
-      // Matching square collider intentionally approximates the low-poly barrel.
-      colliders.push(new T.Box3(new T.Vector3(x - .43, 0, z - .43), new T.Vector3(x + .43, 1.25, z + .43)));
-      cylinder(world, x, .62, z, .43, 1.25, color, 10);
-      cylinder(world, x, .22, z, .445, .085, 0x484a42, 10);
-      cylinder(world, x, 1.02, z, .445, .085, 0x484a42, 10);
-    }
-    barrel(-19, -1, 0x567e72); barrel(-18, -1.7, 0x8e6646); barrel(19, 7, 0x567e72);
-    // Plants sit at the perimeter outside all practical lanes.
-    function palm(x, z, height) {
-      cylinder(world, x, height / 2, z, .23, height, 0x7c6749, 7);
-      for (let k = 0; k < 7; k++) {
-        const leaf = new T.Mesh(new T.ConeGeometry(.52, 3.4, 3), mat(k % 2 ? 0x587b57 : 0x728d62));
-        leaf.position.set(x + Math.sin(k) * 1.1, height, z + Math.cos(k) * 1.1);
-        leaf.rotation.set(Math.cos(k) * .95, k, -Math.sin(k) * .95); world.add(leaf);
-      }
-    }
-    palm(-25, -9, 8.5); palm(26, 7, 9.2); palm(-25, 22, 7.8); palm(27, -22, 9.8);
-    // Distant silhouette: low enough to keep the sky visible and the arena readable.
-    for (let i = 0; i < 15; i++) {
-      const angle = i / 15 * Math.PI * 2;
-      const hill = new T.Mesh(new T.ConeGeometry(8 + i % 4 * 2, 8 + i % 3 * 3, 5), mat(0xb6a78a));
-      hill.position.set(Math.sin(angle) * 60, 2, Math.cos(angle) * 60); hill.rotation.y = i; world.add(hill);
-    }
-    const flag = new T.Group(); flag.position.set(-15, 6.4, -15); world.add(flag);
-    cylinder(flag, 0, 1.5, 0, .045, 3, 0x52584f, 6);
-    box(flag, .65, 2.35, 0, 1.3, .75, .03, teal);
-    box(flag, .16, 2.35, -.025, .25, .75, .04, 0xe7c578);
-    // Static cubes share geometry/material: batch them into instanced draws for phones.
-    world.updateMatrixWorld(true);
-    const batches = new Map();
-    world.traverse(function (object) {
-      if (!object.isMesh || object.geometry !== boxGeometry) return;
-      if (!batches.has(object.material)) batches.set(object.material, []);
-      batches.get(object.material).push(object);
-    });
-    batches.forEach(function (meshes, material) {
-      if (meshes.length < 3) return;
-      const batch = new T.InstancedMesh(boxGeometry, material, meshes.length);
-      batch.castShadow = true; batch.receiveShadow = true;
-      meshes.forEach(function (mesh, index) { batch.setMatrixAt(index, mesh.matrixWorld); mesh.parent.remove(mesh); });
-      batch.instanceMatrix.needsUpdate = true;
-      batch.computeBoundingSphere();
-      world.add(batch);
-    });
-    return { colliders, spawn: new T.Vector3(0, 0, 18), botSpawns: [new T.Vector3(0, 0, -18), new T.Vector3(17, 0, -6), new T.Vector3(-17, 0, -4), new T.Vector3(7, 0, 4)], mapName: 'Песчаный двор' };
+    for(const x of [-21.3,21.3])for(const z of [-17,0,17]){block(x,3,z,.22,.48,.32,iron);const glass=block(x+(x<0?.15:-.15),3,z,.06,.3,.23,trim);}
+    for(let i=0;i<18;i++){const angle=i/18*Math.PI*2;building(Math.sin(angle)*42,Math.cos(angle)*43,7+i%4,7,7+i%5*1.8,i%2?plaster:white);}
+    // Batch repeated static geometry/material pairs while retaining independent collision boxes.
+    world.updateMatrixWorld(true);const batches=new Map();world.traverse(o=>{if(o.isMesh&&!o.material.transparent){const k=o.geometry.uuid+o.material.uuid;if(!batches.has(k))batches.set(k,[]);batches.get(k).push(o);}});
+    for(const meshes of batches.values()){if(meshes.length<3)continue;const inst=new T.InstancedMesh(meshes[0].geometry,meshes[0].material,meshes.length);inst.castShadow=inst.receiveShadow=true;meshes.forEach((m,i)=>{inst.setMatrixAt(i,m.matrixWorld);m.parent.remove(m);});inst.computeBoundingSphere();world.add(inst);}
+    // Distant scenery must never participate in navigation/hits inside the arena.
+    return {colliders,spawn:new T.Vector3(0,0,18),botSpawns:[new T.Vector3(0,0,-18),new T.Vector3(17,0,-6),new T.Vector3(-17,0,-4),new T.Vector3(5,0,4)],mapName:'Квартал Альма'};
   }
   function createCharacter(variant = 0) {
     const actor = new T.Group();

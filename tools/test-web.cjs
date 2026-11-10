@@ -76,6 +76,32 @@ async function desktop(browser) {
   await page.locator('#game').dispatchEvent('mousedown',{button:0});
   await step(page,30); await page.mouse.up();
   assert.equal((await snapshot(page)).ammo,before.ammo-1,'held pistol fires once');
+  // A complete down/up between simulation ticks must still generate one shot.
+  await step(page, 10);
+  before = await snapshot(page);
+  await page.evaluate(() => {
+    const canvas=document.getElementById('game');
+    canvas.dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true}));
+    window.dispatchEvent(new MouseEvent('mouseup',{button:0,bubbles:true}));
+    window.__retroTest.step(1);
+  });
+  assert.equal((await snapshot(page)).shotCount,before.shotCount+1,'sub-tick click is buffered');
+  await step(page, 10);
+  before=await snapshot(page);
+  await page.mouse.click(480,320,{delay:1});
+  await page.waitForFunction(n=>window.__retroTest.snapshot().shotCount>n,before.shotCount);
+  // Force the touch overlay on a hybrid Windows-style device, then use a real mouse.
+  await step(page,10);
+  await page.evaluate(()=>document.exitPointerLock());
+  await page.waitForFunction(()=>window.__retroTest.snapshot().state==='paused');
+  await page.evaluate(()=>{document.getElementById('game').requestPointerLock=()=>Promise.reject(new Error('test denied'));});
+  await page.locator('#start').click();
+  await page.waitForFunction(()=>window.__retroTest.snapshot().state==='playing');
+  await page.evaluate(()=>document.body.classList.add('touch'));
+  before=await snapshot(page);
+  await page.mouse.click(650,160,{delay:1});
+  await page.waitForFunction(n=>window.__retroTest.snapshot().shotCount>n,before.shotCount);
+  await page.evaluate(()=>document.body.classList.remove('touch'));
   // Position a target in a clear lane and use the real input/fire path.
   await page.keyboard.press('4'); await step(page,10);
   await page.evaluate(() => {
@@ -87,7 +113,7 @@ async function desktop(browser) {
   await page.locator('#game').dispatchEvent('mousedown',{button:0});
   await step(page,1); await page.mouse.up();
   assert.equal((await snapshot(page)).kills,before.kills+1,'hitscan kills the aimed target');
-  // Central cargo fills x[-5,.4], z[-5.75,2.75]; the shot must not pass through it.
+  // Central supply crate occludes the route to the north courtyard.
   await step(page,40);
   await page.evaluate(() => {
     window.__retroTest.setPosition(-2.3,0,6);

@@ -5,7 +5,7 @@ const $ = id => document.getElementById(id);
 try {
 if (!window.THREE || !window.RetroAssets) throw new Error('Не найдены файлы игры. Распакуйте весь ZIP и откройте START_GAME.html.');
 const T = THREE, DT = 1 / 30;
-const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+const touch = matchMedia('(pointer: coarse)').matches;
 document.body.classList.toggle('touch', touch);
 const canvas = $('game');
 const renderer = new T.WebGLRenderer({canvas, antialias: !touch, powerPreference: 'high-performance'});
@@ -13,16 +13,17 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, touch ? 1.4 : 1.7));
 renderer.shadowMap.enabled = !touch;
 renderer.shadowMap.type = T.PCFSoftShadowMap;
 renderer.outputColorSpace = T.SRGBColorSpace;
+renderer.toneMapping = T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
 renderer.setClearColor(0xc5d9dd);
 renderer.autoClear = false;
 renderer.info.autoReset = false;
 const scene = new T.Scene();
 scene.background = new T.Color(0xc5d9dd);
-scene.fog = new T.Fog(0xc5d9dd, 32, 90);
-scene.add(new T.HemisphereLight(0xe7f4ff, 0x968368, 2.4));
-const sun = new T.DirectionalLight(0xffe4b4, 2.8);
-sun.position.set(-14, 30, 12); sun.castShadow = !touch;
-sun.shadow.mapSize.set(1024,1024);
+scene.fog = new T.Fog(0xc5d9dd, 40, 100);
+scene.add(new T.HemisphereLight(0xe7f4ff, 0x887b69, 1.65));
+const sun = new T.DirectionalLight(0xffe4c0, 3.2);
+sun.position.set(-22, 32, 16); sun.castShadow = !touch;
+sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera, {left:-30,right:30,top:30,bottom:-30,near:1,far:100});
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.001; scene.add(sun);
@@ -48,6 +49,7 @@ const models = weaponDefs.map(d => {
 const player = {pos:map.spawn.clone(),vel:new T.Vector3(),yaw:0,pitch:0,crouch:false,grounded:true,health:100,armor:50,slot:0,eye:1.65,kick:0};
 let weapons=[],bots=[],state='menu',started=false,elapsed=0,kills=0,deaths=0,shotCount=0,switchTime=0,damageTime=-100,spawnShield=3,respawnTime=0,fireEdge=false,flashTime=0,hitTime=0;
 const keys=new Set(), input={fire:false,jump:false,crouch:false,aim:false,forward:0,strafe:0};
+let fireBuffer=0;
 let jumpHeld=false, mouseHeld=false, pointerFallback=false, walkingTime=0,feedUntil=0,accumulator=0,hudClock=0,navClock=0;
 let joystickId=null,joystickOrigin={x:0,y:0},lookId=null,lookLast;
 let audio;
@@ -117,7 +119,7 @@ function reset(){
  $('round-message').textContent='';$('feed').textContent='';$('results').hidden=true;feedUntil=0;
  rebuildNav();selectWeapon(0);updateHUD();
 }
-function clearInput(){keys.clear();Object.assign(input,{fire:false,jump:false,crouch:false,aim:false,forward:0,strafe:0});mouseHeld=false;fireEdge=false;jumpHeld=false;joystickId=null;lookId=null;$('stick').style.transform='translate(-50%, -50%)';}
+function clearInput(){keys.clear();Object.assign(input,{fire:false,jump:false,crouch:false,aim:false,forward:0,strafe:0});mouseHeld=false;fireEdge=false;fireBuffer=0;jumpHeld=false;joystickId=null;lookId=null;$('stick').style.transform='translate(-50%, -50%)';}
 function pause(){if(state!=='playing')return;state='paused';clearInput();document.body.classList.remove('playing');$('menu').hidden=false;$('start').textContent='ПРОДОЛЖИТЬ';if($('restart'))$('restart').hidden=false;document.exitPointerLock?.();}
 function play(){
  if(!started||state==='ended'){reset();started=true;}
@@ -134,8 +136,21 @@ window.addEventListener('blur',pause);
 function selectWeapon(slot){if(slot<0||slot>=weapons.length)return;player.slot=slot;switchTime=.25;models.forEach((m,i)=>m.visible=i===slot);input.fire=false;fireEdge=false;updateHUD();}
 function reload(){const w=weapons[player.slot],d=weaponDefs[player.slot];if(!w||w.reload||w.ammo>=d.size||w.reserve<=0||respawnTime>0)return;w.reload=d.reload;sound(550,.09,.035);}
 function look(dx,dy){const sensitivity=input.aim?.0011:.0023;player.yaw-=dx*sensitivity;player.pitch=T.MathUtils.clamp(player.pitch-dy*sensitivity,-1.48,1.48);}
-document.addEventListener('mousemove',e=>{if(state==='playing'&&!touch&&(document.pointerLockElement===canvas||mouseHeld))look(e.movementX,e.movementY);});
-canvas.addEventListener('mousedown',e=>{if(state!=='playing')return;if(e.button===0){input.fire=true;mouseHeld=true;}if(e.button===2)input.aim=true;});
+document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===canvas)look(e.movementX,e.movementY);});
+// Listen above overlays too: Windows hybrid touchscreens can target the look layer.
+// Buffer short presses so a down/up pair between 30 Hz ticks is never lost.
+document.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&state==='playing'&&document.pointerLockElement!==canvas&&mouseHeld)look(e.movementX,e.movementY);});
+function mouseButtonDown(e){
+ if(state!=='playing'||e.target.closest?.('button,select,input,#menu'))return;
+ if(e.button===0){input.fire=true;mouseHeld=true;fireBuffer=.3;}
+ if(e.button===2)input.aim=true;
+ e.preventDefault();
+}
+document.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')mouseButtonDown(e);},true);
+document.addEventListener('mousedown',mouseButtonDown);
+document.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'){if(e.button===0){input.fire=false;mouseHeld=false;}if(e.button===2)input.aim=false;}},true);
+document.addEventListener('pointercancel',e=>{if(e.pointerType==='mouse'){input.fire=false;mouseHeld=false;input.aim=false;}},true);
+document.addEventListener('pointerlockerror',()=>{pointerFallback=true;feed('Обзор: удерживайте ЛКМ и двигайте мышь');});
 window.addEventListener('mouseup',e=>{if(e.button===0){input.fire=false;mouseHeld=false;}if(e.button===2)input.aim=false;});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
@@ -153,12 +168,12 @@ function setJoystick(e){let dx=e.clientX-joystickOrigin.x,dy=e.clientY-joystickO
 joystick.addEventListener('pointermove',e=>{if(e.pointerId===joystickId)setJoystick(e);});
 for(const name of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(name,e=>{if(e.pointerId!==joystickId)return;joystickId=null;input.strafe=input.forward=0;stick.style.transform='translate(-50%, -50%)';});
 const lookZone=$('look-zone');
-lookZone.addEventListener('pointerdown',e=>{if(state!=='playing'||lookId!==null)return;e.preventDefault();lookId=e.pointerId;lookLast={x:e.clientX,y:e.clientY};lookZone.setPointerCapture(e.pointerId);});
+lookZone.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;if(state!=='playing'||lookId!==null)return;e.preventDefault();lookId=e.pointerId;lookLast={x:e.clientX,y:e.clientY};lookZone.setPointerCapture(e.pointerId);});
 lookZone.addEventListener('pointermove',e=>{if(e.pointerId!==lookId)return;look((e.clientX-lookLast.x)*1.5,(e.clientY-lookLast.y)*1.5);lookLast={x:e.clientX,y:e.clientY};});
 for(const name of ['pointerup','pointercancel','lostpointercapture'])lookZone.addEventListener(name,e=>{if(e.pointerId===lookId)lookId=null;});
 for(const button of document.querySelectorAll('[data-action]')){
  const action=button.dataset.action;
- button.addEventListener('pointerdown',e=>{if(state!=='playing')return;e.preventDefault();button.setPointerCapture(e.pointerId);if(action==='reload')reload();else if(action==='switch')selectWeapon((player.slot+1)%4);else input[action]=true;button.classList.add('pressed');});
+ button.addEventListener('pointerdown',e=>{if(state!=='playing')return;e.preventDefault();button.setPointerCapture(e.pointerId);if(action==='reload')reload();else if(action==='switch')selectWeapon((player.slot+1)%4);else {input[action]=true;if(action==='fire')fireBuffer=.3;}button.classList.add('pressed');});
  for(const name of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(name,()=>{if(action in input)input[action]=false;button.classList.remove('pressed');});
 }
 function shoot(){
@@ -216,7 +231,7 @@ function update(dt){
   const jump=input.jump||keys.has('Space');if(jump&&!jumpHeld&&player.grounded){player.vel.y=6.8;player.grounded=false;sound(160,.1,.025);}jumpHeld=jump;
   player.vel.y=Math.max(-50,player.vel.y-20*dt);player.grounded=moveBody(player.pos,player.vel,dt,height());
   if(player.pos.y< -10)player.pos.copy(map.spawn);
-  const w=weapons[player.slot];if(input.fire&&(weaponDefs[player.slot].auto||!fireEdge)){shoot();if(w.ammo===0&&!w.reload)reload();}fireEdge=input.fire;
+  const w=weapons[player.slot];if((weaponDefs[player.slot].auto&&input.fire)||fireBuffer>0){if(shoot())fireBuffer=0;if(w.ammo===0&&!w.reload)reload();}fireBuffer=Math.max(0,fireBuffer-dt);fireEdge=input.fire;
   if(elapsed-damageTime>7&&player.health<100)player.health=Math.min(100,player.health+dt*5);
  }
  navClock-=dt;if(navClock<=0){navClock=.65;rebuildNav();}updateBots(dt);
