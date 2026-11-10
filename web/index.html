@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%23171c1c%27/%3E%3Cpath d=%27M8 8h16v16H8zM16 4v24M4 16h24%27 stroke=%27%23e9b264%27 fill=%27none%27/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#171c1c">
+  <title>Полигон — Сектор 07</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="Трёхмерный тренировочный полигон"></canvas>
+  <div class="screen-grain" aria-hidden="true"></div>
+  <div id="damage" aria-hidden="true"></div>
+
+  <main id="menu" class="menu">
+    <div class="menu-shell">
+      <header class="brand"><span class="brand-symbol" aria-hidden="true">▥</span><span>ПОЛИГОН<span class="brand-sub">ТАКТИЧЕСКАЯ ТРЕНИРОВКА</span></span><span class="build-tag">СЕКТОР 07</span></header>
+      <div class="intro-grid">
+        <section class="intro-copy">
+          <div class="eyebrow"><span class="signal-dot"></span> ОДИНОЧНЫЙ РЕЖИМ · БОТЫ</div>
+          <h1>Держи угол.<br><span>Двигайся первым.</span></h1>
+          <p class="intro-lead">Песчаный двор, узкие проходы и открытые линии огня. Выбери темп — и проверь свою реакцию.</p>
+          <div class="mission-chips"><span>01 / СОБСТВЕННАЯ КАРТА</span><span>02 / ЧЕТЫРЕ ВИДА ОРУЖИЯ</span></div>
+          <div class="settings">
+            <label class="difficulty-label" for="difficulty">ПРОТИВНИКИ<select id="difficulty"><option value="easy">Спокойная тренировка</option><option value="normal" selected>Обычная сложность</option></select></label>
+            <label class="sound-label"><input type="checkbox" id="sound" checked><span class="checkbox-mark"></span>Звук</label>
+          </div>
+          <button id="start" class="start-button" type="button"><span>НАЧАТЬ ТРЕНИРОВКУ</span><span aria-hidden="true">↗</span></button>
+          <p id="results" hidden></p>
+          <button id="restart" class="restart-button" type="button" hidden>Начать заново</button>
+          <p class="start-note desktop-note">Нажми, чтобы захватить мышь. <kbd>Esc</kbd> — отпустить курсор.</p>
+          <p class="start-note mobile-note">Управление двумя пальцами. Для игры удобнее повернуть телефон.</p>
+          <div id="error" role="alert" hidden></div>
+        </section>
+        <aside class="map-card" aria-label="Песчаный двор: схема полигона">
+          <div class="map-topline"><span>ОБЪЕКТ / 07</span><span class="coordinate">24° N · 39° E</span></div>
+          <svg class="map-art" viewBox="0 0 400 380" role="img" aria-label="Схематичная карта песчаного двора с проходами и укрытиями">
+            <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#56605b" stroke-width=".5"/></pattern><linearGradient id="mapShade" x2="0" y2="1"><stop stop-color="#303b37"/><stop offset="1" stop-color="#242d2a"/></linearGradient></defs>
+            <rect width="400" height="380" fill="url(#mapShade)"/>
+            <rect width="400" height="380" fill="url(#grid)" opacity=".65"/>
+            <g fill="#c1ad86" stroke="#e5d6b7" stroke-width="1.5">
+              <path d="M45 45H355V95H305V74H95V115H45Z"/>
+              <path d="M45 155H95V235H135V270H45Z"/>
+              <path d="M305 135H355V320H265V285H305Z"/>
+              <path d="M160 120H245V155H225V200H160Z"/>
+              <path d="M165 265H210V320H95V300H165Z"/>
+            </g>
+            <g fill="#788a78" stroke="#b7c3ac" stroke-width="1.5"><rect x="120" y="70" width="35" height="26"/><rect x="263" y="215" width="28" height="28"/><rect x="112" y="174" width="26" height="26"/><rect x="230" y="250" width="26" height="26"/></g>
+            <path d="M220 340V225H273V112H200V65" fill="none" stroke="#e5ae58" stroke-width="2" stroke-dasharray="5 7" opacity=".75"/>
+            <circle cx="220" cy="340" r="23" fill="#79b8ab" opacity=".12"/><circle cx="220" cy="340" r="12" fill="#79b8ab" opacity=".22"/>
+            <path d="m220 330 7 15-7-3-7 3Z" fill="#a6d5c8"/>
+            <g fill="#d5815d"><circle cx="273" cy="112" r="4"/><circle cx="112" cy="239" r="4"/><circle cx="200" cy="65" r="4"/></g>
+            <g fill="#b4bcb1" font-family="monospace" font-size="9"><text x="18" y="26">N ↑</text><text x="333" y="361">20 m</text><text x="245" y="344">ВХОД</text></g>
+          </svg>
+          <div class="map-caption"><div><span class="eyebrow">УЧЕБНАЯ ЗОНА</span><h2>Песчаный двор</h2></div><span class="map-number">07</span></div>
+          <div class="map-footer"><span><i></i> ТВОЯ ПОЗИЦИЯ</span><span>УКРЫТИЯ · ПЕРЕУЛКИ · ДВОР</span></div>
+        </aside>
+      </div>
+      <footer class="controls-guide">
+        <div class="desktop-guide"><span><kbd>W A S D</kbd> Движение</span><span><kbd>МЫШЬ</kbd> Обзор</span><span><kbd>ЛКМ</kbd> Огонь</span><span><kbd>R</kbd> Перезарядка</span><span><kbd>ПРОБЕЛ</kbd> Прыжок</span><span><kbd>C</kbd> Присесть</span><span><kbd>1–4</kbd> Оружие</span></div>
+        <div class="mobile-guide"><span>ЛЕВЫЙ СТИК — ДВИЖЕНИЕ</span><span>ПРАВАЯ ОБЛАСТЬ — ОБЗОР</span><span>КНОПКИ — ДЕЙСТВИЯ</span></div>
+      </footer>
+    </div>
+  </main>
+
+  <div id="hud" class="hud" aria-live="off">
+    <div class="hud-top"><div class="zone-label"><span class="signal-dot"></span> ПЕСЧАНЫЙ ДВОР <small>ТРЕНИРОВКА</small></div><div class="match-stats"><span class="stat-label">ПОРАЖЕНИЯ ЦЕЛЕЙ <b id="kills">0</b></span><span class="stat-divider"></span><span id="timer">03:00</span></div><button id="pause-button" aria-label="Пауза" type="button"><span class="pause-bars" aria-hidden="true"></span></button></div>
+    <div id="feed" class="feed" aria-live="polite"></div>
+    <div id="round-message" class="round-message" aria-live="polite"></div>
+    <div id="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmarker" aria-hidden="true">×</div>
+    <div class="hud-bottom"><div class="vitals"><div class="health-stat"><span class="vital-icon">✚</span><b id="health">100</b><small>ЗДОРОВЬЕ</small></div><div class="armor-stat"><span class="vital-icon">◇</span><b id="armor">50</b><small>БРОНЯ</small></div></div><div id="status" class="status"></div><div class="weapon-stat"><span id="weapon-name">АВТОМАТ</span><div><b id="ammo">30</b><span class="ammo-slash">/</span><span id="reserve">90</span></div><small class="desktop-note">R — ПЕРЕЗАРЯДКА · 1–4 — СМЕНА</small></div></div>
+  </div>
+
+  <div id="touch-controls" aria-label="Сенсорное управление">
+    <div id="look-zone" aria-label="Область обзора"></div>
+    <div id="joystick" aria-label="Движение"><div class="joystick-cross"></div><div id="stick"></div></div>
+    <button class="touch-button fire-button" data-action="fire" aria-label="Стрелять"><span>◎</span></button>
+    <button class="touch-button reload-button" data-action="reload" aria-label="Перезарядка">↻</button>
+    <button class="touch-button jump-button" data-action="jump" aria-label="Прыжок">↑</button>
+    <button class="touch-button crouch-button" data-action="crouch" aria-label="Присесть">↓</button>
+    <button class="touch-button aim-button" data-action="aim" aria-label="Прицелиться">+</button>
+    <button class="touch-button switch-button" data-action="switch" aria-label="Сменить оружие">⇄</button>
+  </div>
+  <noscript>Для запуска игры включи JavaScript в браузере.</noscript>
+  <script src="vendor/three.min.js"></script>
+  <script src="assets.js"></script>
+  <script src="game.js"></script>
+  <script>window.addEventListener('load',function(){if(!window.THREE){var e=document.getElementById('error');e.hidden=false;e.textContent='Не найден графический модуль. Распакуй ZIP целиком и открой игру из распакованной папки.';}});</script>
+</body>
+</html>
